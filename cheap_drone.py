@@ -48,7 +48,10 @@ class GameDealer(UserHandler, AnswererMixin):
 					return await response.json()
 			except Exception as e:
 				print(str(e))
-				return []
+				if 'games' in url:
+					return []
+				else:
+					return None
 
 	async def on_inline_query(self, msg):
 		async def compute_answer():
@@ -64,22 +67,41 @@ class GameDealer(UserHandler, AnswererMixin):
 								message_text='No results'
 							)
 					   )]
-			params = {'title': title_string, 'limit': 12}
+			params = {'title': title_string, 'limit': 8}
 			url = "http://www.cheapshark.com/api/1.0/games" #CheapShark Games Search
 			games = []
-			for g in await self.fetch(session, url, params=params):
-				game = {
-					'id' : g.get('cheapestDealID'),
-					'type': 'article',
-					'title': g.get('external'),
-					'thumb_url': g.get('thumb'),
-					'input_message_content': {
-						'message_text': g.get('external')
-					},
-					'thumb_width': 75,
-					'thumb_height': 75
-				}
-				games.append(game)
+			with aiohttp.ClientSession(loop=loop) as session:
+				for g in await self.fetch(session, url, params=params):
+					game = {
+						'id' : g.get('cheapestDealID'),
+						'type': 'article',
+						'title': g.get('external'),
+						'thumb_url': g.get('thumb'),
+						'input_message_content': {
+							'message_text': g.get('external')
+						},
+						'thumb_width': 25,
+						'thumb_height': 25
+					}
+					games.append(game)
+				deal_url = "http://www.cheapshark.com/api/1.0/deals"
+				deal_params = ['id={}'.format(g.get('id')) for g in games]
+				deal_tasks = []
+				for p in deal_params:
+					task = asyncio.ensure_future(self.fetch(session, deal_url, params=p))
+					deal_tasks.append(task)
+				print('Gathering deals')
+				responses = await asyncio.gather(*deal_tasks)
+				if not responses:
+					return games
+				for g in games:
+					r = next((r for r in responses if r != None and r['gameInfo']['name'] == g['title']), None)
+					if not r:
+						break
+					g['input_message_content'] = {
+						'message_text': '*{title}*\n_${sale}_ on {store}'.format(title=r['gameInfo']['name'], sale=r['gameInfo']['salePrice'], store=self._stores[r['gameInfo']['storeID']]),
+						'parse_mode': 'Markdown'
+					}
 			return games
 
 		self.answerer.answer(msg, compute_answer)
@@ -87,18 +109,18 @@ class GameDealer(UserHandler, AnswererMixin):
 	async def on_chosen_inline_result(self, msg):
 		print('CHOSEN INLINE RESULT')
 		pprint(msg)
-		while self._chat_id is None:
-			await asyncio.sleep(0.15)
-		result_id, from_id, title_string = telepot.glance(msg, flavor='chosen_inline_result')
-		url = "http://www.cheapshark.com/api/1.0/deals" #CheapShark Deal Lookup
-		params = 'id={}'.format(result_id)
-		r = await self.fetch(session, url, params=params)
-		deal = '*{title}*\n_${sale}_ on {store}'
-		if r:
-			deal = deal.format(title=r['gameInfo']['name'], sale=r['gameInfo']['salePrice'], store=self._stores[r['gameInfo']['storeID']])
-		else:
-			deal = '*Error*\n_Deal not found_'
-		await bot.sendMessage(self._chat_id, deal, parse_mode='Markdown')
+		# while self._chat_id is None:
+		# 	await asyncio.sleep(0.15)
+		# result_id, from_id, title_string = telepot.glance(msg, flavor='chosen_inline_result')
+		# url = "http://www.cheapshark.com/api/1.0/deals" #CheapShark Deal Lookup
+		# params = 'id={}'.format(result_id)
+		# r = await self.fetch(session, url, params=params)
+		# deal = '*{title}*\n_${sale}_ on {store}'
+		# if r:
+		# 	deal = deal.format(title=r['gameInfo']['name'], sale=r['gameInfo']['salePrice'], store=self._stores[r['gameInfo']['storeID']])
+		# else:
+		# 	deal = '*Error*\n_Deal not found_'
+		# await bot.sendMessage(self._chat_id, deal, parse_mode='Markdown')
 
 	async def on_chat_message(self, msg):
 		print('CHAT')
@@ -127,16 +149,16 @@ TOKEN = '395957386:AAHQ16wP9TrZokvZ5pZ62GLFTs4Psn3ZOWM'  # BotToken
 # PORT = 8080
 loop = asyncio.get_event_loop()
 # app = web.Application(loop=loop)
-with aiohttp.ClientSession(loop=loop) as session:
-	bot = telepot.aio.DelegatorBot(TOKEN, [
-		pave_event_space()(
-			per_from_id(), create_open, GameDealer, timeout=15),
-	])
-	# webhook = OrderedWebhook(bot)
 
-	loop.create_task(MessageLoop(bot).run_forever())
-	print('#Listening...')
-	loop.run_forever()
+bot = telepot.aio.DelegatorBot(TOKEN, [
+	pave_event_space()(
+		per_inline_from_id(), create_open, GameDealer, timeout=15),
+])
+# webhook = OrderedWebhook(bot)
+
+loop.create_task(MessageLoop(bot).run_forever())
+print('#Listening...')
+loop.run_forever()
 
 	# try:
 	# 	web.run_app(app, host='127.0.0.1', port=PORT)
