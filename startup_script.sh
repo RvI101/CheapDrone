@@ -11,23 +11,23 @@ service google-fluentd restart &
 # Install dependencies from apt
 apt-get update
 apt-get install -yq \
-    git build-essential supervisor python python-dev python-pip libffi-dev \
+    git build-essential supervisor python3 python3-dev python3-pip libffi-dev \
     libssl-dev
 
 # Create a cheap-drone user. The application will run as this user.
 useradd -m -d /home/cheap-drone cheap-drone
 
 # pip from apt is out of date, so make it update itself and install virtualenv.
-pip install --upgrade pip virtualenv
+pip3 install --upgrade pip virtualenv
 
 # Get the source code from the Google Cloud Repository
 # git requires $HOME and it's not set during the startup script.
 export HOME=/root
 git config --global credential.helper gcloud.sh
-git clone https://source.developers.google.com/p/excellent-tide-117005/r/CheapDrone /opt/app
+git clone https://source.developers.google.com/p/excellent-tide-117005/r/CheapDrone /opt/app/CheapDrone
 
 # Install app dependencies
-virtualenv /opt/app/CheapDrone/env
+virtualenv -p python3 /opt/app/CheapDrone/env
 /opt/app/CheapDrone/env/bin/pip install -r /opt/app/CheapDrone/requirements.txt
 
 # Make sure the cheap-drone user owns the application code
