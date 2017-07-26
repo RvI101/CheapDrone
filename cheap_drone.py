@@ -45,15 +45,16 @@ class GameDealer(UserHandler, AnswererMixin):
 		with aiohttp.Timeout(10):
 			try:
 				async with session.get(url, params=params) as response:
-					print(response.url)
 					return await response.json()
 			except Exception as e:
-				print(response.url, str(e))
+				print(str(e))
+				return []
 
 	async def on_inline_query(self, msg):
 		async def compute_answer():
 			start_time = time.time()
 			query_id, from_id, title_string = telepot.glance(msg, flavor='inline_query')
+			print('INLINE QUERY')
 			print (title_string)
 			if title_string == None or title_string == '':
 				return [InlineQueryResultArticle(
@@ -66,7 +67,6 @@ class GameDealer(UserHandler, AnswererMixin):
 			params = {'title': title_string, 'limit': 12}
 			url = "http://www.cheapshark.com/api/1.0/games" #CheapShark Games Search
 			games = []
-			print('{} seconds have passed'.format(time.time() - start_time))
 			for g in await self.fetch(session, url, params=params):
 				game = {
 					'id' : g.get('cheapestDealID'),
@@ -80,7 +80,6 @@ class GameDealer(UserHandler, AnswererMixin):
 					'thumb_height': 75
 				}
 				games.append(game)
-			print('{} seconds have passed'.format(time.time() - start_time))
 			return games
 
 		self.answerer.answer(msg, compute_answer)
@@ -89,12 +88,16 @@ class GameDealer(UserHandler, AnswererMixin):
 		print('CHOSEN INLINE RESULT')
 		pprint(msg)
 		while self._chat_id is None:
-			await asyncio.sleep(0.1)
+			await asyncio.sleep(0.15)
 		result_id, from_id, title_string = telepot.glance(msg, flavor='chosen_inline_result')
 		url = "http://www.cheapshark.com/api/1.0/deals" #CheapShark Deal Lookup
 		params = 'id={}'.format(result_id)
 		r = await self.fetch(session, url, params=params)
-		deal = '*{title}*\n_${sale}_ on {store}'.format(title=r['gameInfo']['name'], sale=r['gameInfo']['salePrice'], store=self._stores[r['gameInfo']['storeID']])
+		deal = '*{title}*\n_${sale}_ on {store}'
+		if r:
+			deal = deal.format(title=r['gameInfo']['name'], sale=r['gameInfo']['salePrice'], store=self._stores[r['gameInfo']['storeID']])
+		else:
+			deal = '*Error*\n_Deal not found_'
 		await bot.sendMessage(self._chat_id, deal, parse_mode='Markdown')
 
 	async def on_chat_message(self, msg):
@@ -127,7 +130,7 @@ loop = asyncio.get_event_loop()
 with aiohttp.ClientSession(loop=loop) as session:
 	bot = telepot.aio.DelegatorBot(TOKEN, [
 		pave_event_space()(
-			per_from_id(), create_open, GameDealer, timeout=10),
+			per_from_id(), create_open, GameDealer, timeout=15),
 	])
 	# webhook = OrderedWebhook(bot)
 

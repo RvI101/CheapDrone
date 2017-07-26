@@ -38,7 +38,7 @@ chown -R cheap-drone:cheap-drone /opt/app
 cat >/etc/supervisor/conf.d/cheap-drone.conf << EOF
 [program:cheap-drone]
 directory=/opt/app/CheapDrone
-command=/opt/app/CheapDrone/env/bin/python3 cheap-drone.py
+command=/opt/app/CheapDrone/env/bin/python3 cheap_drone.py
 autostart=true
 autorestart=true
 user=cheap-drone
