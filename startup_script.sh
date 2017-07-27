@@ -24,6 +24,7 @@ pip3 install --upgrade pip virtualenv
 # git requires $HOME and it's not set during the startup script.
 export HOME=/root
 git config --global credential.helper gcloud.sh
+[ -d "/opt/app/CheapDrone" ] && rm -rf "/opt/app/CheapDrone"
 git clone https://source.developers.google.com/p/excellent-tide-117005/r/CheapDrone /opt/app/CheapDrone
 
 # Install app dependencies
