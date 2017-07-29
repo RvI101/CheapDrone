@@ -126,7 +126,7 @@ class GameDealer(UserHandler, AnswererMixin):
 # 	return web.Response(text='Working OK!')
 
 
-TOKEN = '395957386:AAHQ16wP9TrZokvZ5pZ62GLFTs4Psn3ZOWM'  # BotToken
+TOKEN = sys.argv[1] # BotToken
 # PORT = 8080
 loop = asyncio.get_event_loop()
 # app = web.Application(loop=loop)
