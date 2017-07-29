@@ -107,28 +107,9 @@ class GameDealer(UserHandler, AnswererMixin):
 		self.answerer.answer(msg, compute_answer)
 
 	async def on_chosen_inline_result(self, msg):
-		print('CHOSEN INLINE RESULT')
-		pprint(msg)
-		# while self._chat_id is None:
-		# 	await asyncio.sleep(0.15)
-		# result_id, from_id, title_string = telepot.glance(msg, flavor='chosen_inline_result')
-		# url = "http://www.cheapshark.com/api/1.0/deals" #CheapShark Deal Lookup
-		# params = 'id={}'.format(result_id)
-		# r = await self.fetch(session, url, params=params)
-		# deal = '*{title}*\n_${sale}_ on {store}'
-		# if r:
-		# 	deal = deal.format(title=r['gameInfo']['name'], sale=r['gameInfo']['salePrice'], store=self._stores[r['gameInfo']['storeID']])
-		# else:
-		# 	deal = '*Error*\n_Deal not found_'
-		# await bot.sendMessage(self._chat_id, deal, parse_mode='Markdown')
-
-	async def on_chat_message(self, msg):
-		print('CHAT')
-		pprint(msg)
-		content_type, chat_type, chat_id = telepot.glance(msg, flavor='chat')
-		if content_type != 'text':
-			return
-		self._chat_id = chat_id
+		# print('CHOSEN INLINE RESULT')
+		# pprint(msg)
+		pass
 
 # async def feeder(request):
 # 	data = await request.text()
