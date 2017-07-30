@@ -4,6 +4,7 @@ import time
 import aiohttp
 from aiohttp import web
 import telepot
+import cache
 from pprint import pprint
 from telepot.aio.loop import MessageLoop, OrderedWebhook
 from telepot.aio.helper import UserHandler, AnswererMixin
@@ -53,6 +54,7 @@ class GameDealer(UserHandler, AnswererMixin):
 				else:
 					return None
 
+	@cache.async_lru(1024)
 	async def on_inline_query(self, msg):
 		async def compute_answer():
 			start_time = time.time()
@@ -111,31 +113,13 @@ class GameDealer(UserHandler, AnswererMixin):
 		# pprint(msg)
 		pass
 
-# async def feeder(request):
-# 	data = await request.text()
-# 	webhook.feed(data)
-# 	return web.Response(body='OK'.encode('utf-8'))
-
-# async def init(app, bot):
-# 	app.router.add_route('GET', '/webhook', feeder)
-# 	app.router.add_route('POST', '/webhook', feeder)
-# 	app.router.add_route('GET', '/status', check)
-# 	# await bot.setWebhook('http://103.16.69.56:8080/webhook')
-
-# async def check(request):
-# 	return web.Response(text='Working OK!')
-
-
 TOKEN = sys.argv[1] # BotToken
-# PORT = 8080
 loop = asyncio.get_event_loop()
-# app = web.Application(loop=loop)
 
 bot = telepot.aio.DelegatorBot(TOKEN, [
 	pave_event_space()(
 		per_inline_from_id(), create_open, GameDealer, timeout=15),
 ])
-# webhook = OrderedWebhook(bot)
 
 loop.create_task(MessageLoop(bot).run_forever())
 print('#Listening...')
