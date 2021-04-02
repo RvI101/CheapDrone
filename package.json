@@ -22,8 +22,8 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "start": "node --experimental-specifier-resolution=node index.js",
-    "dev": "nodemon index.ts",
+    "start": "node --experimental-specifier-resolution=node dist/index.js",
+    "dev": "nodemon src/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "type": "module",
