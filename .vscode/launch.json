@@ -1,0 +1,34 @@
+{
+  "configurations": [
+    {
+      "name": "Cloud Run: Run/Debug Locally",
+      "type": "cloudcode.cloudrun",
+      "request": "launch",
+      "build": {
+        "docker": {
+          "path": "Dockerfile"
+        }
+      },
+      "image": "gcr.io/cheapdrone/webhook-service",
+      "service": {
+        "name": "cheap-drone-service",
+        "containerPort": 8080,
+        "serviceAccountName": "webhook-server@cheapdrone.iam.gserviceaccount.com",
+        "resources": {
+          "limits": {
+            "memory": "256Mi"
+          }
+        }
+      },
+      "target": {
+        "minikube": {}
+      },
+      "watch": true,
+      "debug": {
+        "sourceFileMap": {
+          "${workspaceFolder}": "/usr/src/app"
+        }
+      }
+    }
+  ]
+}
