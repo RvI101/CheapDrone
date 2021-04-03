@@ -1,4 +1,4 @@
-import axios from 'axios';
+import got from 'got';
 import {
   InlineQueryResultArticle,
   InputTextMessageContent,
@@ -9,34 +9,34 @@ import { cache } from './cache';
 import {
   DealLookupResult,
   DealStubResult,
+  DummyTodo,
   GameLookupResult,
   GameSearchResult,
 } from './types';
 
-// Helper functions
+// API functions
 export const searchTitle = async (
   title: string
 ): Promise<Array<GameSearchResult>> => {
+  const url = 'http://www.cheapshark.com/api/1.0/games';
   const config = {
-    method: 'get' as const,
-    // TODO: Increase limit
-    url: `http://www.cheapshark.com/api/1.0/games?title=${title}&limit=10`,
+    searchParams: {
+      title: title,
+      limit: 10,
+    },
     headers: {},
   };
   if (title === '') {
     return [];
   }
 
-  return axios(config)
-    .then(
-      (response: { data: GameSearchResult[] }): Array<GameSearchResult> => {
-        return response.data;
-      }
-    )
-    .catch((error: any) => {
-      console.log(error);
-      return [];
-    });
+  try {
+    const response = got.get(url, config).json<Array<GameSearchResult>>();
+    return response;
+  } catch (error) {
+    console.log(error);
+    return [];
+  }
 };
 
 export const gameToArticle = (
@@ -77,35 +77,23 @@ export const gameToArticle = (
   type: 'article',
 });
 
-export const getSteamPrices = async (appIds: string[]) => {
-  const config = {
-    method: 'get' as const,
-    url: `http://store.steampowered.com/api/appdetails/?appids=${appIds.join(
-      ','
-    )}&filters=price_overview`,
-    headers: {},
-  };
-
-  return axios(config)
-    .then((res) => res.data)
-    .catch((error) => {
-      console.log(error);
-      return {};
-    });
-};
-
 export const getSteamPrice = async (appId: string, cc: string) => {
+  const url = 'http://store.steampowered.com/api/appdetails/';
   const config = {
-    method: 'get' as const,
-    url: `http://store.steampowered.com/api/appdetails/?appids=${appId}&filters=price_overview&cc=${cc}`,
     headers: {},
+    searchParams: {
+      appids: appId,
+      filters: 'price_overview',
+      cc: cc,
+    },
   };
-  return axios(config)
-    .then((res) => res.data)
-    .catch((error) => {
-      console.error(error);
-      return {};
-    });
+
+  try {
+    return got.get(url, config).json<any>();
+  } catch (error) {
+    console.error();
+    return {};
+  }
 };
 
 export const generateUpdatedMsg = async (
@@ -134,71 +122,49 @@ export const generateUpdatedMsg = async (
   }
 };
 
-export const getDeal = async (dealId: string): Promise<DealLookupResult> => {
-  var config = {
-    method: 'get' as const,
-    url:
-      'https://www.cheapshark.com/api/1.0/deals?id=X8sebHhbc1Ga0dTkgg59WgyM506af9oNZZJLU9uSrX8%3D',
-    headers: {},
-  };
-
-  return axios(config)
-    .then((response) => response?.data)
-    .catch(function (error) {
-      console.error(error);
-      return {};
-    });
-};
-
 export const getCheapestDeal = async (
   gameId: string
 ): Promise<DealStubResult> => {
+  const url = 'https://www.cheapshark.com/api/1.0/games';
   var config = {
-    method: 'get' as const,
-    url: `https://www.cheapshark.com/api/1.0/games?id=${gameId}`,
+    searchParams: {
+      id: gameId,
+    },
     headers: {},
   };
 
-  return axios(config)
-    .then((response) => {
-      const res: GameLookupResult = response?.data;
-      const cheapestDeal: DealStubResult = res?.deals?.reduce((prev, curr) =>
-        Number(prev.price) < Number(curr.price) ? prev : curr
-      );
-      return cheapestDeal;
-    })
-    .catch(function (error) {
-      console.error(error);
-      return {} as DealStubResult;
-    });
+  try {
+    const response = await got.get(url, config).json<GameLookupResult>();
+    const cheapestDeal: DealStubResult = response?.deals?.reduce((prev, curr) =>
+      Number(prev.price) < Number(curr.price) ? prev : curr
+    );
+    return cheapestDeal;
+  } catch (error) {
+    console.error(error);
+    return {} as DealStubResult;
+  }
 };
 
 export const refreshCache = async () => {
+  const url = 'http://www.cheapshark.com/api/1.0/stores';
   let config = {
-    method: 'GET' as const,
-    url: 'http://www.cheapshark.com/api/1.0/stores',
     headers: {},
   };
 
-  cache.storeMap = await axios(config)
+  cache.storeMap = await got
+    .get(url, config)
+    .json<any>()
     .then(function (response: {
-      data: {
-        map: (
-          arg0: (store: any) => any[]
-        ) => Iterable<readonly [number, string]>;
-      };
+      map: (arg0: (store: any) => any[]) => Iterable<readonly [number, string]>;
     }) {
-      // console.log(response.data);
-      return new Map<
-        number,
-        string
-      >(response.data.map((store: any) => [store.storeID, store.storeName]));
+      return new Map<number, string>(
+        response.map((store: any) => [store.storeID, store.storeName])
+      );
     })
     .catch(function (error: any) {
       console.log(error);
       return new Map<number, string>();
     });
-  // console.log(cache.storeMap);
   if (cache.storeMap.size == 0) {
     return false;
   } else {

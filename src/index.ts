@@ -69,15 +69,8 @@ bot.on('inline_query', async (ctx: Context) => {
   let games: GameSearchResult[] = [];
   try {
     const title = ctx.inlineQuery?.query;
-    console.log(title);
-    console.time('cheapShark');
     games = await searchTitle(title ?? '');
-    // console.log(games);
-    console.timeEnd('cheapShark');
-    console.time('PP');
     gameArticles = games.map(gameToArticle);
-    // console.log(gameArticles);
-    console.timeEnd('PP');
   } catch (error) {
     console.error('Error' + error);
   } finally {
