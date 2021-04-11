@@ -5,14 +5,12 @@ import {
   InlineKeyboardButton,
   InlineKeyboardMarkup,
 } from 'telegraf/typings/telegram-types';
-import { cache } from './cache';
 import {
   DealLookupResult,
   DealStubResult,
-  DummyTodo,
   GameLookupResult,
   GameSearchResult,
-} from './types';
+} from '../types/cheapshark.types';
 
 // API functions
 export const searchTitle = async (
@@ -76,51 +74,6 @@ export const gameToArticle = (
   thumb_height: 15,
   type: 'article',
 });
-
-export const getSteamPrice = async (appId: string, cc: string) => {
-  const url = 'http://store.steampowered.com/api/appdetails/';
-  const config = {
-    headers: {},
-    searchParams: {
-      appids: appId,
-      filters: 'price_overview',
-      cc: cc,
-    },
-  };
-
-  try {
-    return got.get(url, config).json<any>();
-  } catch (error) {
-    console.error();
-    return {};
-  }
-};
-
-export const generateUpdatedMsg = async (
-  queryString: string
-): Promise<string> => {
-  const [title, appId, cc, gameId] = queryString.split('|');
-  if (!title || !appId || !cc) {
-    throw new Error(`Error parsing callback_data: ${queryString}`);
-  }
-  switch (cc) {
-    case 'IN':
-    case 'DE':
-      const priceResponse = await getSteamPrice(appId, cc);
-      const localPrice =
-        priceResponse[appId]?.data?.price_overview?.final_formatted ?? 'N/A';
-      return `*${title}*\n_${localPrice}_ on Steam`;
-    case 'US':
-    default:
-      const dealPriceResponse: DealStubResult = await getCheapestDeal(gameId);
-      const dealPrice = dealPriceResponse?.price;
-      const storeId = dealPriceResponse?.storeID;
-      // console.log(cache.storeMap);
-      // console.log(storeId);
-      // console.log(cache.storeMap.get(storeId));
-      return `*${title}*\n_\$ ${dealPrice}_ on ${cache.storeMap.get(storeId)}`;
-  }
-};
 
 export const getCheapestDeal = async (
   gameId: string

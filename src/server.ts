@@ -1,7 +1,7 @@
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 
-require('@google-cloud/trace-agent').start({
+const tracer = require('@google-cloud/trace-agent').start({
   samplingRate: 5, // sample 5 traces per second, or at most 1 every 200 milliseconds.
   ignoreMethods: ['options'], // ignore requests with OPTIONS method (case-insensitive).
 });
@@ -9,16 +9,12 @@ import { Context, Telegraf } from 'telegraf';
 import { InlineQueryResultArticle } from 'typegram';
 import Fastify from 'fastify';
 import { CallbackQuery } from 'telegraf/typings/telegram-types';
-import { GameSearchResult } from './types';
-import {
-  searchTitle,
-  gameToArticle,
-  generateUpdatedMsg,
-  refreshCache,
-} from './client';
 
 import telegrafPlugin from 'fastify-telegraf';
-import { accessSecretVersion } from './secretClient';
+import { accessSecretVersion } from './clients/secret-manager.client';
+import { generateUpdatedMsg, loadSteamIdRepo } from './services/bot.service';
+import { gameToArticle, searchGames } from './fetchers/itad-api.fetcher';
+import { GameSearchResult } from './types/itad.types';
 
 // Fetch token from Secret Manager
 const BOT_TOKEN = await accessSecretVersion();
@@ -35,14 +31,8 @@ app.get('/', async (request: any, reply: any) => {
   return { hello: 'world' };
 });
 
-// TODO: Remove this
-app.get('/token', async (request, reply) => {
-  return await accessSecretVersion();
-});
-
-app.addHook('onReady', async () => {
-  // setup logic
-  await refreshCache();
+app.post('/loadSteamIdRepo', async (request: any, reply: any) => {
+  await loadSteamIdRepo();
 });
 
 app.register(telegrafPlugin, { bot, path: SECRET_PATH });
@@ -56,7 +46,7 @@ bot.hears('Hi', async (ctx: Context) => {
 });
 
 bot.command('refresh', async (ctx: Context) => {
-  const ok = await refreshCache();
+  const ok = true;
   if (ok) {
     ctx.reply('Refreshed.');
   } else {
@@ -65,22 +55,26 @@ bot.command('refresh', async (ctx: Context) => {
 });
 
 bot.on('inline_query', async (ctx: Context) => {
+  const inlineQuerySpan = tracer.createChildSpan({ name: 'inline-query-span' });
   let gameArticles: InlineQueryResultArticle[] = [];
   let games: GameSearchResult[] = [];
   try {
     const title = ctx.inlineQuery?.query;
-    games = await searchTitle(title ?? '');
+    const searchTitleSpan = inlineQuerySpan.createChildSpan({
+      name: 'search-title-span',
+    });
+    games = await searchGames(title ?? '');
     gameArticles = games.map(gameToArticle);
+    searchTitleSpan.endSpan();
   } catch (error) {
     console.error('Error' + error);
   } finally {
+    inlineQuerySpan.endSpan();
     ctx.answerInlineQuery(gameArticles);
   }
 });
 
 bot.on('callback_query', async (ctx: Context) => {
-  // console.log('Got callback query');
-  // console.log(ctx.callbackQuery);
   const cbQuery = ctx.callbackQuery as CallbackQuery.DataCallbackQuery;
   try {
     let text = await generateUpdatedMsg(cbQuery.data);
