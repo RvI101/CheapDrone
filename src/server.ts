@@ -1,10 +1,10 @@
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
+// import { createRequire } from 'module';
+// const require = createRequire(import.meta.url);
 
-const tracer = require('@google-cloud/trace-agent').start({
-  samplingRate: 5, // sample 5 traces per second, or at most 1 every 200 milliseconds.
-  ignoreMethods: ['options'], // ignore requests with OPTIONS method (case-insensitive).
-});
+// const tracer = require('@google-cloud/trace-agent').start({
+//   samplingRate: 5, // sample 5 traces per second, or at most 1 every 200 milliseconds.
+//   ignoreMethods: ['options'], // ignore requests with OPTIONS method (case-insensitive).
+// });
 import { Context, Telegraf } from 'telegraf';
 import { InlineQueryResultArticle } from 'typegram';
 import Fastify from 'fastify';
@@ -12,9 +12,22 @@ import { CallbackQuery } from 'telegraf/typings/telegram-types';
 
 import telegrafPlugin from 'fastify-telegraf';
 import { accessSecretVersion } from './clients/secret-manager.client';
-import { generateUpdatedMsg, loadSteamIdRepo } from './services/bot.service';
-import { gameToArticle, searchGames } from './fetchers/itad-api.fetcher';
+import {
+  gameToArticle,
+  generateUpdatedMsg,
+  getSteamId,
+  loadSteamIdRepo,
+  persistTitles,
+} from './services/bot.service';
+import {
+  getInlineErrorArticle,
+  searchGames,
+} from './fetchers/itad-api.fetcher';
 import { GameSearchResult } from './types/itad.types';
+import {
+  getSteamAppPrice,
+  getSteamPackagePrice,
+} from './fetchers/steam-api.fetcher';
 
 // Fetch token from Secret Manager
 const BOT_TOKEN = await accessSecretVersion();
@@ -32,7 +45,23 @@ app.get('/', async (request: any, reply: any) => {
 });
 
 app.post('/loadSteamIdRepo', async (request: any, reply: any) => {
-  await loadSteamIdRepo();
+  return await loadSteamIdRepo();
+});
+
+app.get('/plain/:plain', async (request: any, reply: any) => {
+  return await getSteamId(request.params.plain);
+});
+
+app.get('/steam/app/:appId', async (request: any, reply: any) => {
+  return await getSteamAppPrice(request.params.appId, 'IN');
+});
+
+app.get('/steam/sub/:appId', async (request: any, reply: any) => {
+  return await getSteamPackagePrice(request.params.subId, 'IN');
+});
+
+app.get('/search', async (request: any, reply: any) => {
+  return (await searchGames(request.query.q)).map(gameToArticle);
 });
 
 app.register(telegrafPlugin, { bot, path: SECRET_PATH });
@@ -45,31 +74,44 @@ bot.hears('Hi', async (ctx: Context) => {
   return await ctx.reply('OK.');
 });
 
-bot.command('refresh', async (ctx: Context) => {
-  const ok = true;
-  if (ok) {
-    ctx.reply('Refreshed.');
-  } else {
-    ctx.reply('Refresh failed!');
-  }
-});
+// bot.command('refresh', async (ctx: Context) => {
+//   const ok = true;
+//   if (ok) {
+//     ctx.reply('Refreshed.');
+//   } else {
+//     ctx.reply('Refresh failed!');
+//   }
+// });
 
 bot.on('inline_query', async (ctx: Context) => {
-  const inlineQuerySpan = tracer.createChildSpan({ name: 'inline-query-span' });
+  // const inlineQuerySpan = tracer.createChildSpan({ name: 'inline-query-span' });
   let gameArticles: InlineQueryResultArticle[] = [];
   let games: GameSearchResult[] = [];
   try {
     const title = ctx.inlineQuery?.query;
-    const searchTitleSpan = inlineQuerySpan.createChildSpan({
-      name: 'search-title-span',
-    });
+    // const searchTitleSpan = inlineQuerySpan.createChildSpan({
+    //   name: 'search-title-span',
+    // });
+    if (!title || title === '') {
+      return await ctx.answerInlineQuery([
+        getInlineErrorArticle('Blank query!'),
+      ]);
+    }
     games = await searchGames(title ?? '');
-    gameArticles = games.map(gameToArticle);
-    searchTitleSpan.endSpan();
+    if (games.length > 0) {
+      const ok = persistTitles(games);
+      gameArticles = games.map(gameToArticle);
+      await ok;
+    } else {
+      gameArticles = [getInlineErrorArticle('No results found!')];
+    }
+    // searchTitleSpan.endSpan();
   } catch (error) {
     console.error('Error' + error);
+    gameArticles = [getInlineErrorArticle('Error fetching results!')];
   } finally {
-    inlineQuerySpan.endSpan();
+    // inlineQuerySpan.endSpan();
+    console.log(gameArticles);
     ctx.answerInlineQuery(gameArticles);
   }
 });
@@ -79,7 +121,7 @@ bot.on('callback_query', async (ctx: Context) => {
   try {
     let text = await generateUpdatedMsg(cbQuery.data);
     ctx.editMessageText(text, {
-      parse_mode: 'Markdown',
+      parse_mode: 'MarkdownV2',
       reply_markup: undefined,
     });
   } catch (error) {

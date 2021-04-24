@@ -97,30 +97,3 @@ export const getCheapestDeal = async (
     return {} as DealStubResult;
   }
 };
-
-export const refreshCache = async () => {
-  const url = 'http://www.cheapshark.com/api/1.0/stores';
-  let config = {
-    headers: {},
-  };
-
-  cache.storeMap = await got
-    .get(url, config)
-    .json<any>()
-    .then(function (response: {
-      map: (arg0: (store: any) => any[]) => Iterable<readonly [number, string]>;
-    }) {
-      return new Map<number, string>(
-        response.map((store: any) => [store.storeID, store.storeName])
-      );
-    })
-    .catch(function (error: any) {
-      console.log(error);
-      return new Map<number, string>();
-    });
-  if (cache.storeMap.size == 0) {
-    return false;
-  } else {
-    return true;
-  }
-};
