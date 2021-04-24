@@ -1,6 +1,6 @@
 import Redis from 'ioredis';
 
-const REDISHOST = process.env.REDIS_HOST || 'host.docker.internal';
+const REDISHOST = process.env.REDIS_IP || 'host.docker.internal';
 const REDISPORT = process.env.REDIS_PORT || 6379;
 
 export const client = new Redis(Number(REDISPORT), REDISHOST, {
