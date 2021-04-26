@@ -1,33 +1,19 @@
-// import { createRequire } from 'module';
-// const require = createRequire(import.meta.url);
-
-// const tracer = require('@google-cloud/trace-agent').start({
-//   samplingRate: 5, // sample 5 traces per second, or at most 1 every 200 milliseconds.
-//   ignoreMethods: ['options'], // ignore requests with OPTIONS method (case-insensitive).
-// });
 import { Context, Telegraf } from 'telegraf';
-import { InlineQueryResultArticle } from 'typegram';
 import Fastify from 'fastify';
-import { CallbackQuery } from 'telegraf/typings/telegram-types';
 
 import telegrafPlugin from 'fastify-telegraf';
 import { accessSecretVersion } from './clients/secret-manager.client';
 import {
   gameToArticle,
-  generateUpdatedMsg,
   getSteamId,
   loadSteamIdRepo,
-  persistTitles,
 } from './services/bot.service';
-import {
-  getInlineErrorArticle,
-  searchGames,
-} from './fetchers/itad-api.fetcher';
-import { GameSearchResult } from './types/itad.types';
+import { searchGames } from './fetchers/itad-api.fetcher';
 import {
   getSteamAppPrice,
   getSteamPackagePrice,
 } from './fetchers/steam-api.fetcher';
+import { callbackQueryHandler, inlineQueryHandler } from './handlers';
 
 // Fetch token from Secret Manager
 const BOT_TOKEN = await accessSecretVersion();
@@ -74,62 +60,9 @@ bot.hears('Hi', async (ctx: Context) => {
   return await ctx.reply('OK.');
 });
 
-// bot.command('refresh', async (ctx: Context) => {
-//   const ok = true;
-//   if (ok) {
-//     ctx.reply('Refreshed.');
-//   } else {
-//     ctx.reply('Refresh failed!');
-//   }
-// });
+bot.on('inline_query', inlineQueryHandler);
 
-bot.on('inline_query', async (ctx: Context) => {
-  // const inlineQuerySpan = tracer.createChildSpan({ name: 'inline-query-span' });
-  let gameArticles: InlineQueryResultArticle[] = [];
-  let games: GameSearchResult[] = [];
-  try {
-    const title = ctx.inlineQuery?.query;
-    // const searchTitleSpan = inlineQuerySpan.createChildSpan({
-    //   name: 'search-title-span',
-    // });
-    if (!title || title === '') {
-      return await ctx.answerInlineQuery([
-        getInlineErrorArticle('Blank query!'),
-      ]);
-    }
-    games = await searchGames(title ?? '');
-    if (games.length > 0) {
-      const ok = persistTitles(games);
-      gameArticles = games.map(gameToArticle);
-      await ok;
-    } else {
-      gameArticles = [getInlineErrorArticle('No results found!')];
-    }
-    // searchTitleSpan.endSpan();
-  } catch (error) {
-    console.error('Error' + error);
-    gameArticles = [getInlineErrorArticle('Error fetching results!')];
-  } finally {
-    // inlineQuerySpan.endSpan();
-    console.log(gameArticles);
-    ctx.answerInlineQuery(gameArticles);
-  }
-});
-
-bot.on('callback_query', async (ctx: Context) => {
-  const cbQuery = ctx.callbackQuery as CallbackQuery.DataCallbackQuery;
-  try {
-    let text = await generateUpdatedMsg(cbQuery.data);
-    ctx.editMessageText(text, {
-      parse_mode: 'MarkdownV2',
-      reply_markup: undefined,
-    });
-  } catch (error) {
-    console.error(error);
-  } finally {
-    ctx.answerCbQuery();
-  }
-});
+bot.on('callback_query', callbackQueryHandler);
 
 // bot.telegram.setWebhook(WEBHOOK_URL).then(() => {
 //   console.log('Webhook is set on', WEBHOOK_URL);
